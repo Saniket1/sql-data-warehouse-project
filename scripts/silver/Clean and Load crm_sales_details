@@ -1,0 +1,61 @@
+--Update DDL script as per silver table data modification 
+IF OBJECT_ID('silver.crm_sales_details', 'U') IS NOT NULL
+	DROP TABLE silver.crm_sales_details;
+Create Table silver.crm_sales_details(
+	sls_ord_num NVARCHAR (50),
+	sls_prd_key NVARCHAR (50),
+	sls_cust_id INT,
+	sls_order_dt Date,
+	sls_ship_dt Date,
+	sls_due_dt Date,
+	sls_sales INT,
+	sls_quantity Int,
+	sls_price Int,
+	dwh_create_date DateTime2 Default GETDate()
+);
+
+---Insert Data Silver Table
+Insert Into silver.crm_sales_details(
+	sls_ord_num ,
+	sls_prd_key ,
+	sls_cust_id ,
+	sls_order_dt,
+	sls_ship_dt ,
+	sls_due_dt ,
+	sls_sales ,
+	sls_quantity ,
+	sls_price
+)
+Select
+sls_ord_num,
+sls_prd_key,
+sls_cust_id,
+
+Case When sls_order_dt = 0 OR Len(sls_order_dt) != 8 then NUll --Handelling invalid Data
+	 Else CAST(CAST(sls_order_dt AS VARCHAR)AS DATE) -- Data type casting
+End AS sls_order_dt,
+
+Case When sls_ship_dt = 0 OR Len(sls_ship_dt) != 8 then NUll
+	 Else CAST(CAST(sls_ship_dt AS VARCHAR)AS DATE)
+End AS sls_ship_dt,
+
+Case When sls_due_dt = 0 OR Len(sls_due_dt) != 8 then NUll
+	 Else CAST(CAST(sls_due_dt AS VARCHAR)AS DATE)
+End AS sls_due_dt,
+
+Case When sls_sales IS NULL OR sls_sales <=0 OR sls_sales != sls_quantity * ABS(sls_price)
+		Then sls_quantity * ABS(sls_price)
+	else sls_sales
+End AS sls_sales, --Recalculate sales if original value is missing or correct
+
+sls_quantity,
+
+Case When sls_price is NUll OR sls_price <= 0
+		Then sls_sales / NULLIF(sls_quantity,0)
+	ELse sls_price
+End AS sls_price -- Derive price if original value is invalid
+
+from bronze.crm_sales_details
+
+--------------
+select *from silver.crm_sales_details
